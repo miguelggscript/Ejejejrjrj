@@ -1,67 +1,51 @@
-local Players = game:GetService("Players")
-local player = Players.LocalPlayer
+name: Windows Cloud PC - Anydesk (Optimized)
 
--- Criar a GUI
-local screenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
-screenGui.Name = "mglHubGui"
+on:
+  workflow_dispatch:
 
--- Texto temporário grande na tela
-local tempLabel = Instance.new("TextLabel")
-tempLabel.Size = UDim2.new(1, 0, 0.2, 0)
-tempLabel.Position = UDim2.new(0, 0, 0.4, 0)
-tempLabel.BackgroundTransparency = 1
-tempLabel.Text = "{mglHub}"
-tempLabel.TextColor3 = Color3.new(1, 1, 1)
-tempLabel.Font = Enum.Font.SourceSansBold
-tempLabel.TextSize = 60
-tempLabel.TextStrokeTransparency = 0
-tempLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
-tempLabel.Parent = screenGui
+jobs:
+  build:
+    name: Start Building...
+    runs-on: windows-latest
+    timeout-minutes: 10080  # MÃ¡ximo de 7 dias para evitar tempo de execuÃ§Ã£o excessivo
 
-task.delay(3, function()
-	if tempLabel then
-		tempLabel:Destroy()
-	end
-end)
+    steps:
+      - name: Downloading & Installing Essentials
+        run: |
+          # Baixa o arquivo .bat para instalar componentes essenciais
+          Invoke-WebRequest -Uri "https://www.dropbox.com/scl/fi/7eiczvgil84czu55dxep3/Downloads.bat?rlkey=wzdc1wxjsph2b7r0atplmdz3p&dl=1" -OutFile "Downloads.bat"
+          # Executa o script .bat para instalar os componentes
+          cmd /c Downloads.bat
 
--- Função para criar botões
-local function createButton(text, position)
-	local button = Instance.new("TextButton")
-	button.Size = UDim2.new(0, 150, 0, 40)
-	button.Position = position
-	button.Text = text
-	button.BackgroundColor3 = Color3.new(0.2, 0.6, 1)
-	button.TextColor3 = Color3.new(1, 1, 1)
-	button.Font = Enum.Font.SourceSansBold
-	button.TextSize = 20
-	button.Parent = screenGui
-	return button
-end
+      - name: Log In To AnyDesk
+        run: |
+          # Verifica se o arquivo start.bat existe antes de executar
+          if (Test-Path "start.bat") {
+            cmd /c start.bat
+          } else {
+            Write-Host "Arquivo start.bat nÃ£o encontrado. Verifique a configuraÃ§Ã£o."
+          }
 
--- Botão Spawnar Bloco
-local spawnBlockButton = createButton("Spawnar Bloco", UDim2.new(0, 20, 0, 100))
-spawnBlockButton.MouseButton1Click:Connect(function()
-	local char = player.Character or player.CharacterAdded:Wait()
-	local root = char:WaitForChild("HumanoidRootPart")
+      - name: Monitor and Restart AnyDesk if Needed
+        run: |
+          # Monitora a conexÃ£o do AnyDesk e reinicia se necessÃ¡rio
+          while ($true) {
+            $process = Get-Process -Name "AnyDesk" -ErrorAction SilentlyContinue
+            if (-not $process) {
+              Write-Host "AnyDesk nÃ£o estÃ¡ rodando, reiniciando..."
+              cmd /c start.bat
+            }
+            Start-Sleep -Seconds 300  # Verifica a cada 5 minutos
+          }
 
-	local part = Instance.new("Part")
-	part.Size = Vector3.new(3, 3, 3)
-	part.Position = root.Position - Vector3.new(0, 3, 0)
-	part.Anchored = true
-	part.Color = Color3.new(1, 0, 0)
-	part.Name = "BlocoSpawnado"
-	part.Parent = workspace
-end)
+      - name: Time Counter (Long Running Task)
+        run: |
+          # Configura para manter a mÃ¡quina em execuÃ§Ã£o
+          Start-Sleep -Seconds 604800  # 7 dias de execuÃ§Ã£o contÃ­nua
 
--- Botão Invisível
-local invisibleButton = createButton("Invisível", UDim2.new(0, 20, 0, 150))
-invisibleButton.MouseButton1Click:Connect(function()
-	local char = player.Character or player.CharacterAdded:Wait()
-	for _, part in ipairs(char:GetDescendants()) do
-		if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-			part.Transparency = 1
-		elseif part:IsA("Decal") then
-			part.Transparency = 1
-		end
-	end
-end)
+      - name: Clean Up Temporary Files
+        if: success()  # Executa esta etapa apenas se todas as etapas anteriores forem bem-sucedidas
+        run: |
+          # Remove arquivos temporÃ¡rios ou logs gerados
+          Remove-Item Downloads.bat -Force
+          Write-Host "Limpeza completa."
